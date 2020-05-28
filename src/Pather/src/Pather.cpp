@@ -9,6 +9,7 @@
 #include "RecastDump.h"
 #include <DetourCommon.h>
 #include <InputGeom.h>
+#include <VMUtils/fmt.hpp>
 
 #include "DetourNavMeshBuilder.h"
 
@@ -40,10 +41,8 @@ static const int NAVMESHSET_VERSION = 1;
 
 static float frand()
 {
-	//	return ((float)(rand() & 0xffff)/(float)0xffff);
 	return (float)rand() / (float)RAND_MAX;
 }
-
 
 
 struct NavMeshSetHeader
@@ -98,7 +97,10 @@ std::shared_ptr<NavMesh> CreateNavMesh(std::shared_ptr<rcContext> ctx,
 {
 	auto p = std::shared_ptr<NavMesh>(new NavMesh(geom, es));
 	p->SetExternalSettings(es);
-	p->Build(ctx, desc);
+	if(p->Build(ctx, desc) == false)
+	{
+		return nullptr;
+	}
 	p->InitQuery();
 	p->InitCrowd();
 	return p;
@@ -417,17 +419,13 @@ void NavMesh::SetExternalSettings(const ExternalSettings& es)
 bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 {
 	VM_IMPL(NavMesh);
-
-
-
+	assert(ctx);
 	if (!_->m_geom || !_->m_geom->getMesh())
 	{
-		ctx.get()->log(RC_LOG_ERROR, "buildNavigation: Input mesh is not specified.");
+		ctx->log(RC_LOG_ERROR, "buildNavigation: Input mesh is not specified.");
 		return false;
 	}
-
 	_->Desc = desc;
-
 	//cleanup();
 
 	const float* bmin = _->m_geom->getNavMeshBoundsMin();
@@ -465,6 +463,7 @@ bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 	rcCalcGridSize(cfg.bmin, cfg.bmax, cfg.cs, &cfg.width, &cfg.height);
 
 
+
 	// Reset build times gathering.
 	ctx.get()->resetTimers();
 
@@ -474,6 +473,7 @@ bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 	ctx.get()->log(RC_LOG_PROGRESS, "Building navigation:");
 	ctx.get()->log(RC_LOG_PROGRESS, " - %d x %d cells", cfg.width, cfg.height);
 	ctx.get()->log(RC_LOG_PROGRESS, " - %.1fK verts, %.1fK tris", nverts / 1000.0f, ntris / 1000.0f);
+
 
 	//
 	// Step 2. Rasterize input polygon soup.
@@ -649,6 +649,7 @@ bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 		ctx->log(RC_LOG_ERROR, "buildNavigation: Could not create contours.");
 		return false;
 	}
+
 
 	//
 	// Step 6. Build polygons mesh from contours.

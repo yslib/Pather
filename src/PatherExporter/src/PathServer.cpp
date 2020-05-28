@@ -1,5 +1,6 @@
 #include <memory>
 #include <PathServer.h>
+#include <VMUtils/fmt.hpp>
 
 static std::shared_ptr<NavMesh> navMesh = nullptr;
 static std::shared_ptr<rcContext> ctx = nullptr;
@@ -9,8 +10,8 @@ static bool is_init = false;
 
 bool init()
 {
-	auto ctx = std::shared_ptr<rcContext>(new rcContext);
-
+	ctx = std::shared_ptr<rcContext>(new rcContext);
+	ctx->enableLog(true);
 	return is_init = true;
 }
 
@@ -21,8 +22,10 @@ bool open_from_navmesh_file(const char* fn)
 
 bool open_from_scene_mesh_file(const char* fn)
 {
+	auto name = std::string(fn);
 	auto geom = shared_ptr<InputGeom>(new InputGeom());
-	geom->load(ctx.get(), std::string(fn));
+
+	geom->load(ctx.get(), name);
 	ExternalSettings extSettings;
 	NavMeshDesc desc;
 
@@ -39,8 +42,9 @@ bool open_from_scene_mesh_file(const char* fn)
 	desc.VertsPerPoly = 6;
 	desc.DetailSampleDist = 6;
 	desc.DetailSampleMaxError = 1;
-
 	navMesh = CreateNavMesh(ctx, geom, extSettings, desc);
+
+	println("scene is loaded");
 
 	return navMesh != nullptr;
 }
@@ -72,6 +76,14 @@ void move_all_agents_to(const float* target)
 	navMesh->MoveAllAgentsTo(t);
 }
 
+bool get_agent_current_position(int idx, float* pos)
+{
+	const auto p = navMesh->GetAgentCurrentPosition(idx);
+	memcpy(pos, p.ConstData(), sizeof(Point3f));
+	return true;
+}
+
+
 void gen_rand_pos(int expect_count, float* pos, int* exact_count)
 {
 	assert(navMesh);
@@ -91,6 +103,12 @@ void gen_rand_pos_around_circle(int expect_count, const float* center, float rad
 	auto res = navMesh->GetRandomPositionAroundCircle(expect_count, c, radius);
 	memcpy(pos, res.data(), sizeof(Point3f) * res.size());
 	*exact_count = res.size();
+}
+
+void simulate(float dt)
+{
+	assert(navMesh);
+	navMesh->Simulate(dt);
 }
 
 

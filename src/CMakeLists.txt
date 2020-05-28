@@ -7,5 +7,6 @@ add_subdirectory(DetourTileCache)
 add_subdirectory(Recast)
 add_subdirectory(Pather)
 add_subdirectory(PatherExporter)
+add_subdirectory(PythonBinding)
 
 add_subdirectory(Test)

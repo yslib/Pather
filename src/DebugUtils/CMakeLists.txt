@@ -21,11 +21,3 @@ set_target_properties(DebugUtils PROPERTIES
         VERSION ${VERSION}
         )
 
-install(TARGETS DebugUtils
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        COMPONENT library
-        )
-
-file(GLOB INCLUDES Include/*.h)
-install(FILES ${INCLUDES} DESTINATION include)

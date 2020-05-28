@@ -19,11 +19,4 @@ set_target_properties(DetourCrowd PROPERTIES
         VERSION ${VERSION}
         )
 
-install(TARGETS DetourCrowd
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        COMPONENT library
-        )
-
 file(GLOB INCLUDES Include/*.h)
-install(FILES ${INCLUDES} DESTINATION include)

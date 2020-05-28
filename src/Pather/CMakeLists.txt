@@ -20,12 +20,6 @@ VM_TARGET_DEPENDENCY(Pather VMUtils PUBLIC)
 VM_TARGET_DEPENDENCY(Pather VMat PUBLIC)
 
 
-install(TARGETS Pather
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        COMPONENT library
-        )
 
 file(GLOB INCLUDES include/*.h)
-install(FILES ${INCLUDES} DESTINATION include)
 

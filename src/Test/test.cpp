@@ -10,7 +10,7 @@ int main()
 {
 	using namespace std;
 	using namespace vm;
-	string meshFile = R"(D:\test_scene_mesh.obj)";
+	string meshFile = R"(D:\scene_mesh.obj)";
 	string navMeshSavePath = R"(D:\test_nav_mesh_data.bin)";
 	ExternalSettings extSettings;
 
@@ -36,12 +36,11 @@ int main()
 	auto navMesh = CreateNavMesh(ctx,geom, extSettings,desc);
 	
 
-	navMesh->SaveAs(navMeshSavePath);
+	//navMesh->SaveAs(navMeshSavePath);
 
 	//auto saveNavMesh = LoadNavMesh(navMeshSavePath);
 
-
-	Point3f agentInitPos(-22.209324, 1.400002 ,- 12.012280);
+	Point3f agentInitPos(12.800000190734864, 1 ,-22.012280);
 	Point3f agentTargetPos(13.626881, 1.400002, 5.984295);
 
 

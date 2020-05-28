@@ -15,10 +15,10 @@ target_include_directories(Pather PUBLIC ${PathServer_INCLUDE_DIR})
 
 
 install(TARGETS PathServer
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
+        LIBRARY DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
+        RUNTIME DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
         COMPONENT library
         )
 
-file(GLOB INCLUDES include/*.h)
-install(FILES ${INCLUDES} DESTINATION include)
+
