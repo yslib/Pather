@@ -2,12 +2,14 @@
 #pragma once
 #include <VMUtils/common.h>
 #include <VMUtils/concepts.hpp>
+#include <VMUtils/json_binding.hpp>
 #include <VMat/geometry.h>
 #include <InputGeom.h>
 #include <Recast.h>
 #include <Pather_config.h>
 #include "DetourCrowd.h"
 #include <vector>
+#include <Crowd.h>
 
 using namespace vm;
 
@@ -41,10 +43,27 @@ enum EPolyFlags
 	POLYFLAGS_SWIM = 0x02,		// Ability to swim (water).
 	POLYFLAGS_DOOR = 0x04,		// Ability to move through doors.
 	POLYFLAGS_JUMP = 0x08,		// Ability to jump.
-	POLYFLAGS_DISABLED = 0x10,		// Disabled polygon
+	POLYFLAGS_DISABLED = 0x10,	// Disabled polygon
 	POLYFLAGS_ALL = 0xffff	// All abilities.
 };
 
+
+//struct NavMeshDesc:vm::json::Serializable<NavMeshDesc>
+//{
+//	VM_JSON_FIELD(float, CellSize);
+//	VM_JSON_FIELD(float, CellHeight);
+//	VM_JSON_FIELD(float, AgentHeight);
+//	VM_JSON_FIELD(float, AgentRadius);
+//	VM_JSON_FIELD(float, AgentMaxClimb);
+//	VM_JSON_FIELD(float, AgentMaxSlope);
+//	VM_JSON_FIELD(float, RegionMinSize);
+//	VM_JSON_FIELD(float, RegionMergeSize);
+//	VM_JSON_FIELD(float, EdgeMaxLen);
+//	VM_JSON_FIELD(float, EdgeMaxError);
+//	VM_JSON_FIELD(float, VertsPerPoly);
+//	VM_JSON_FIELD(float, DetailSampleDist);
+//	VM_JSON_FIELD(float, DetailSampleMaxError);
+//};
 
 struct NavMeshDesc
 {
@@ -63,14 +82,14 @@ struct NavMeshDesc
 	float DetailSampleMaxError;
 };
 
-class NavMesh__pImpl;
-class PATHER_EXPORTS NavMesh:vm::NoCopy,vm::NoMove
+class Pather__pImpl;
+class PATHER_EXPORTS Pather:vm::NoCopy,vm::NoMove
 {
-	VM_DECL_IMPL(NavMesh)
+	VM_DECL_IMPL(Pather)
 public:
 	bool SaveAs(const std::string& fileName);
 	
-	int AddAgent(const Point3f & pos);
+	int AddAgent(const Point3f & pos,const AgentDesc & ap);
 
 	void RemoveAgent(int idx);
 
@@ -83,24 +102,30 @@ public:
 	std::vector<Point3f> GetRandomPosition(int count);
 
 	std::vector<Point3f> GetRandomPositionAroundCircle(int count,const Point3f & center,float radius);
-	//std::vector<Point3f> GetNearestRandomPosition(int count);
-	void Simulate(float dt);
 
+	void Simulate(float dt);
+	
 private:
-	NavMesh(std::shared_ptr<InputGeom> geom,const ExternalSettings & es);
-	NavMesh(std::shared_ptr<dtNavMesh> navMesh);
+	Pather(std::shared_ptr<InputGeom> geom,const ExternalSettings & es);
+	Pather(std::shared_ptr<dtNavMesh> navMesh);
+	
+	
 	void SetExternalSettings(const ExternalSettings& es);
 	bool Build(std::shared_ptr<rcContext> ctx,const NavMeshDesc & desc);
-	void InitCrowd();
+	void InitCrowd(const CrowdDesc & desc);
 	void InitQuery();
 
-	friend std::shared_ptr<NavMesh> CreateNavMesh(std::shared_ptr<rcContext> ctx, std::shared_ptr<InputGeom> geom, const ExternalSettings& es, const NavMeshDesc& desc);
-	friend std::shared_ptr<NavMesh> LoadNavMesh(const std::string& fileName);
+	friend class NavQuery;
+	friend class NavCrowd;
+
+	friend std::shared_ptr<Pather> BuildPather(std::shared_ptr<rcContext> ctx, std::shared_ptr<InputGeom> geom, const ExternalSettings& es, const NavMeshDesc& desc);
+	friend std::shared_ptr<Pather> CreatePather(std::shared_ptr<dtNavMesh> navMesh,const CrowdDesc & desc);
 };
 
-std::shared_ptr<NavMesh> CreateNavMesh(std::shared_ptr<rcContext> ctx, std::shared_ptr<InputGeom> geom, const ExternalSettings& es, const NavMeshDesc& desc);
-std::shared_ptr<NavMesh> LoadNavMesh(const std::string& fileName);
 
+std::shared_ptr<Pather> BuildPather(std::shared_ptr<rcContext> ctx, std::shared_ptr<InputGeom> geom, const ExternalSettings& es, const NavMeshDesc& desc);
 
+std::shared_ptr<Pather> CreatePather(std::shared_ptr<dtNavMesh> navMesh,const CrowdDesc & desc);
 
+std::shared_ptr<dtNavMesh> LoadNavMesh(const std::string& fileName);
 

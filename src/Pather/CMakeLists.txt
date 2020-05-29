@@ -7,7 +7,7 @@ VM_EXTERNAL_MODULE(GIT_REPOSITORY https://github.com/cad420/VMat.git GIT_TAG MAS
 
 
 add_library(Pather STATIC)
-target_sources(Pather PRIVATE ${SOURCES})
+target_sources(Pather PRIVATE ${SOURCES} "src/Crowd.cpp" "src/Query.cpp"  "src/NavMesh.cpp")
 
 
 target_link_libraries(Pather DebugUtils Detour DetourCrowd DetourTileCache Recast)

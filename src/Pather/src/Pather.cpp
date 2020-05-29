@@ -10,22 +10,26 @@
 #include <DetourCommon.h>
 #include <InputGeom.h>
 #include <VMUtils/fmt.hpp>
+#include <VMUtils/bomb.hpp>
 
 #include "DetourNavMeshBuilder.h"
+#include <Query.h>
+#include <Crowd.h>
 
 
 using namespace std;
 
-class NavMesh__pImpl
+class Pather__pImpl
 {
-	VM_DECL_API(NavMesh)
+	VM_DECL_API(Pather)
 public:
-	NavMesh__pImpl(NavMesh* api) :q_ptr(api) {}
+	Pather__pImpl(Pather* api) :q_ptr(api) {}
 	std::shared_ptr<InputGeom> m_geom;
-	std::shared_ptr<dtNavMesh> m_navMesh;
+
 	std::shared_ptr<dtNavMeshQuery> m_navQuery;
 	std::shared_ptr<dtCrowd> m_crowd;
-	
+
+	std::shared_ptr<dtNavMesh> m_navMesh;
 	std::shared_ptr<rcContourSet> m_cset;
 	std::shared_ptr<rcPolyMesh> m_pmesh;
 	std::shared_ptr<rcPolyMeshDetail> m_dmesh;
@@ -35,6 +39,7 @@ public:
 	ExternalSettings m_es;
 	NavMeshDesc Desc;
 };
+
 
 static const int NAVMESHSET_MAGIC = 'M' << 24 | 'S' << 16 | 'E' << 8 | 'T'; //'MSET';
 static const int NAVMESHSET_VERSION = 1;
@@ -60,12 +65,13 @@ struct NavMeshTileHeader
 };
 
 
-void NavMesh::Simulate(float dt)
+void Pather::Simulate(float dt)
 {
-	VM_IMPL(NavMesh)
-	auto nav = _->m_navMesh;
+	VM_IMPL(Pather)
+		auto nav = _->m_navMesh;
 	auto crowd = _->m_crowd;
-	if (!nav || !crowd) 
+
+	if (!nav || !crowd)
 		return;
 
 	crowd->update(dt, nullptr);
@@ -75,14 +81,14 @@ void NavMesh::Simulate(float dt)
 
 }
 
-NavMesh::NavMesh(std::shared_ptr<InputGeom> geom, const ExternalSettings& es) :
-	d_ptr(new NavMesh__pImpl(this))
+Pather::Pather(std::shared_ptr<InputGeom> geom, const ExternalSettings& es) :
+	d_ptr(new Pather__pImpl(this))
 {
 	d_ptr->m_geom = std::move(geom);
 	d_ptr->m_es = es;
 }
 
-NavMesh::NavMesh(std::shared_ptr<dtNavMesh> navMesh) :d_ptr(new NavMesh__pImpl(this))
+Pather::Pather(std::shared_ptr<dtNavMesh> navMesh) :d_ptr(new Pather__pImpl(this))
 {
 	d_ptr->m_navMesh = std::move(navMesh);
 	d_ptr->m_navQuery = std::shared_ptr<dtNavMeshQuery>(dtAllocNavMeshQuery(), [](dtNavMeshQuery* p) {dtFreeNavMeshQuery(p); });;
@@ -90,57 +96,75 @@ NavMesh::NavMesh(std::shared_ptr<dtNavMesh> navMesh) :d_ptr(new NavMesh__pImpl(t
 }
 
 
-std::shared_ptr<NavMesh> CreateNavMesh(std::shared_ptr<rcContext> ctx,
+std::shared_ptr<Pather> BuildPather(std::shared_ptr<rcContext> ctx,
 	std::shared_ptr<InputGeom> geom,
 	const ExternalSettings& es,
 	const NavMeshDesc& desc)
 {
-	auto p = std::shared_ptr<NavMesh>(new NavMesh(geom, es));
+	auto p = std::shared_ptr<Pather>(new Pather(geom, es));
 	p->SetExternalSettings(es);
-	if(p->Build(ctx, desc) == false)
+	if (p->Build(ctx, desc) == false)
 	{
 		return nullptr;
 	}
 	p->InitQuery();
-	p->InitCrowd();
-	return p;
 
+	CrowdDesc cd;
+	cd.MaxAgentCount = 10;
+	cd.MaxAgentRadius = desc.AgentRadius;
+	p->InitCrowd(cd);
+	return p;
 }
 
-std::shared_ptr<NavMesh> LoadNavMesh(const std::string& fileName)
+std::shared_ptr<Pather> CreatePather(std::shared_ptr<dtNavMesh> navMesh, const CrowdDesc& desc)
 {
-	FILE* fp = fopen(fileName.c_str(), "rb");
-	if (!fp) return 0;
+	auto p = std::shared_ptr<Pather>(new Pather(std::move(navMesh)));
+	p->InitQuery();
+	p->InitCrowd(desc);
+	return p;
+}
+
+std::shared_ptr<dtNavMesh> LoadNavMesh(const std::string& fileName)
+{
+	auto fp = fopen(fileName.c_str(), "rb");
+	auto b = vm::make_bomb([&]()
+		{
+			fclose(fp);
+		});
+
+	if (!fp)
+	{
+		println("{} can not be opened", fileName);
+		return nullptr;
+	}
 
 	// Read header.
 	NavMeshSetHeader header;
 	size_t readLen = fread(&header, sizeof(NavMeshSetHeader), 1, fp);
 	if (readLen != 1)
 	{
-		fclose(fp);
+		println("NavMeshSetHeader length is invalid");
 		return nullptr;
 	}
 	if (header.magic != NAVMESHSET_MAGIC)
 	{
-		fclose(fp);
+		println("NavMeshSetHeader magic number is invalid");
 		return nullptr;
 	}
 	if (header.version != NAVMESHSET_VERSION)
 	{
-		fclose(fp);
+		println("NavMeshSetHeader version is invalid");
 		return nullptr;
 	}
 
 	auto mesh = shared_ptr<dtNavMesh>(dtAllocNavMesh(), [](dtNavMesh* p) {dtFreeNavMesh(p); });
 	if (!mesh)
 	{
-		fclose(fp);
 		return nullptr;
 	}
 	dtStatus status = mesh->init(&header.params);
 	if (dtStatusFailed(status))
 	{
-		fclose(fp);
 		return nullptr;
 	}
 
@@ -151,7 +175,7 @@ std::shared_ptr<NavMesh> LoadNavMesh(const std::string& fileName)
 		readLen = fread(&tileHeader, sizeof(tileHeader), 1, fp);
 		if (readLen != 1)
 		{
-			fclose(fp);
+			println("tile header length is invalid");
 			return nullptr;
 		}
 
@@ -165,34 +189,33 @@ std::shared_ptr<NavMesh> LoadNavMesh(const std::string& fileName)
 		if (readLen != 1)
 		{
 			dtFree(data);
-			fclose(fp);
 			return nullptr;
 		}
 
 		mesh->addTile(data, tileHeader.dataSize, DT_TILE_FREE_DATA, tileHeader.tileRef, 0);
 	}
-
-	fclose(fp);
-
-	auto p = shared_ptr<NavMesh>(new NavMesh(mesh));
-	p->InitQuery();
-	p->InitCrowd();
-
-	return p;
+	return mesh;
+	//p->InitQuery();
+	//p->InitCrowd(10, 1);
+	//return p;
 }
-
-bool NavMesh::SaveAs(const std::string& fileName)
+bool Pather::SaveAs(const std::string& fileName)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 
 	auto mesh = (const dtNavMesh*)_->m_navMesh.get();
 	if (!_->m_navMesh)
 		return false;
 
-	FILE* fp = fopen(fileName.c_str(), "wb");
+	auto fp = fopen(fileName.c_str(), "wb");
+
 	if (!fp)
 		return false;
 
+	auto b = vm::make_bomb([&]()
+		{
+			fclose(fp);
+		});
 
 	// Store header.
 	NavMeshSetHeader header;
@@ -222,39 +245,36 @@ bool NavMesh::SaveAs(const std::string& fileName)
 
 		fwrite(tile->data, tile->dataSize, 1, fp);
 	}
-	fclose(fp);
 }
 
-int NavMesh::AddAgent(const Point3f& pos)
+int Pather::AddAgent(const Point3f& pos,const AgentDesc & ap)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	auto crowd = _->m_crowd.get();
 	assert(crowd);
 
-	const auto& desc = _->Desc;
 
-
-	dtCrowdAgentParams ap;
-	memset(&ap, 0, sizeof(ap));
-	ap.radius = desc.AgentRadius;
-	ap.height = desc.AgentHeight;
-	ap.maxAcceleration = 8.0f;
-	ap.maxSpeed = 3.5f;
-	ap.collisionQueryRange = ap.radius * 12.0f;
-	ap.pathOptimizationRange = ap.radius * 30.0f;
-	ap.updateFlags = 0;
-	//if (m_toolParams.m_anticipateTurns)
-	ap.updateFlags |= DT_CROWD_ANTICIPATE_TURNS;
-	//if (m_toolParams.m_optimizeVis)
-	ap.updateFlags |= DT_CROWD_OPTIMIZE_VIS;
-	//if (m_toolParams.m_optimizeTopo)
-	ap.updateFlags |= DT_CROWD_OPTIMIZE_TOPO;
-	//if (m_toolParams.m_obstacleAvoidance)
-	ap.updateFlags |= DT_CROWD_OBSTACLE_AVOIDANCE;
-	//if (m_toolParams.m_separation)
-	ap.updateFlags |= DT_CROWD_SEPARATION;
-	ap.obstacleAvoidanceType = 0; // (unsigned char)m_toolParams.m_obstacleAvoidanceType;
-	ap.separationWeight = 2.0f; // m_toolParams.m_separationWeight;
+	//dtCrowdAgentParams ap;
+	//memset(&ap, 0, sizeof(ap));
+	//ap.radius = desc.AgentRadius;
+	//ap.height = desc.AgentHeight;
+	//ap.maxAcceleration = 8.0f;
+	//ap.maxSpeed = 3.5f;
+	//ap.collisionQueryRange = ap.radius * 12.0f;
+	//ap.pathOptimizationRange = ap.radius * 30.0f;
+	//ap.updateFlags = 0;
+	////if (m_toolParams.m_anticipateTurns)
+	//ap.updateFlags |= DT_CROWD_ANTICIPATE_TURNS;
+	////if (m_toolParams.m_optimizeVis)
+	//ap.updateFlags |= DT_CROWD_OPTIMIZE_VIS;
+	////if (m_toolParams.m_optimizeTopo)
+	//ap.updateFlags |= DT_CROWD_OPTIMIZE_TOPO;
+	////if (m_toolParams.m_obstacleAvoidance)
+	//ap.updateFlags |= DT_CROWD_OBSTACLE_AVOIDANCE;
+	////if (m_toolParams.m_separation)
+	//ap.updateFlags |= DT_CROWD_SEPARATION;
+	//ap.obstacleAvoidanceType = 0; // (unsigned char)m_toolParams.m_obstacleAvoidanceType;
+	//ap.separationWeight = 2.0f; // m_toolParams.m_separationWeight;
 
 	auto idx = crowd->addAgent(pos.ConstData(), &ap);
 	//if (idx != -1)
@@ -267,18 +287,18 @@ int NavMesh::AddAgent(const Point3f& pos)
 
 }
 
-void NavMesh::RemoveAgent(int idx)
+void Pather::RemoveAgent(int idx)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	auto crowd = _->m_crowd.get();
 	assert(crowd);
 	crowd->removeAgent(idx);
 }
 
 
-void NavMesh::MoveAllAgentsTo(const Point3f& target)
+void Pather::MoveAllAgentsTo(const Point3f& target)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	auto navquery = _->m_navQuery.get();
 	auto crowd = _->m_crowd.get();
 	assert(navquery && crowd);
@@ -298,12 +318,11 @@ void NavMesh::MoveAllAgentsTo(const Point3f& target)
 		crowd->requestMoveTarget(i, targetRef, targetPos.ConstData());
 	}
 
-
 }
 
-void NavMesh::MoveAgentTo(int idx, const Point3f& target)
+void Pather::MoveAgentTo(int idx, const Point3f& target)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	auto navquery = _->m_navQuery.get();
 	auto crowd = _->m_crowd.get();
 	assert(navquery && crowd);
@@ -324,9 +343,9 @@ void NavMesh::MoveAgentTo(int idx, const Point3f& target)
 
 }
 
-Point3f NavMesh::GetAgentCurrentPosition(int idx)
+Point3f Pather::GetAgentCurrentPosition(int idx)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	auto navquery = _->m_navQuery.get();
 	auto crowd = _->m_crowd.get();
 	assert(navquery && crowd);
@@ -338,14 +357,14 @@ Point3f NavMesh::GetAgentCurrentPosition(int idx)
 	if (!ag || !ag->active)
 		return Point3f();
 
-	return Point3f(ag->npos[0],ag->npos[1],ag->npos[2]);
+	return Point3f(ag->npos[0], ag->npos[1], ag->npos[2]);
 
 }
 
 
-std::vector<Point3f> NavMesh::GetRandomPosition(int count)
+std::vector<Point3f> Pather::GetRandomPosition(int count)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	dtQueryFilter filter;
 	filter.setIncludeFlags(POLYFLAGS_ALL ^ POLYFLAGS_DISABLED);
 	filter.setExcludeFlags(0);
@@ -356,7 +375,7 @@ std::vector<Point3f> NavMesh::GetRandomPosition(int count)
 	{
 		float pt[3];
 		dtPolyRef ref;
-		
+
 		dtStatus status = _->m_navQuery->findRandomPoint(&filter, frand, &ref, pt);
 		if (dtStatusSucceed(status))
 		{
@@ -370,9 +389,9 @@ std::vector<Point3f> NavMesh::GetRandomPosition(int count)
 }
 
 
-std::vector<Point3f> NavMesh::GetRandomPositionAroundCircle(int count, const Point3f& center, float radius)
+std::vector<Point3f> Pather::GetRandomPositionAroundCircle(int count, const Point3f& center, float radius)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 
 	std::vector<Point3f> res;
 	int np = 0;
@@ -385,9 +404,9 @@ std::vector<Point3f> NavMesh::GetRandomPositionAroundCircle(int count, const Poi
 
 	const float pickExtent[3] = { 2,4,2 };
 
-	_->m_navQuery->findNearestPoly(center.ConstData(), 
-		pickExtent, 
-		&filter, 
+	_->m_navQuery->findNearestPoly(center.ConstData(),
+		pickExtent,
+		&filter,
 		&startRef, 0);
 
 	for (int i = 0; i < count; i++)
@@ -409,16 +428,16 @@ std::vector<Point3f> NavMesh::GetRandomPositionAroundCircle(int count, const Poi
 }
 
 
-void NavMesh::SetExternalSettings(const ExternalSettings& es)
+void Pather::SetExternalSettings(const ExternalSettings& es)
 {
-	VM_IMPL(NavMesh)
+	VM_IMPL(Pather)
 		_->m_es = es;
 }
 
 
-bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
+bool Pather::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	assert(ctx);
 	if (!_->m_geom || !_->m_geom->getMesh())
 	{
@@ -809,9 +828,9 @@ bool NavMesh::Build(std::shared_ptr<rcContext> ctx, const NavMeshDesc& desc)
 
 }
 
-void NavMesh::InitCrowd()
+void Pather::InitCrowd(const CrowdDesc & desc)
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 
 	_->m_crowd = std::shared_ptr<dtCrowd>(dtAllocCrowd(), [](dtCrowd* p) {dtFreeCrowd(p); });
 
@@ -820,9 +839,7 @@ void NavMesh::InitCrowd()
 
 	assert(nav && crowd);
 
-	const auto& desc = _->Desc;
-
-	crowd->init(10, desc.AgentRadius, nav);
+	crowd->init(desc.MaxAgentCount, desc.MaxAgentRadius, nav);
 
 	// Make polygons with 'disabled' flag invalid.
 	crowd->getEditableFilter(0)->setExcludeFlags(POLYFLAGS_DISABLED);
@@ -863,9 +880,9 @@ void NavMesh::InitCrowd()
 
 }
 
-void NavMesh::InitQuery()
+void Pather::InitQuery()
 {
-	VM_IMPL(NavMesh);
+	VM_IMPL(Pather);
 	_->m_navQuery = std::shared_ptr<dtNavMeshQuery>(dtAllocNavMeshQuery(), [](dtNavMeshQuery* p) {dtFreeNavMeshQuery(p); });
 	_->m_navQuery->init(_->m_navMesh.get(), 2048);
 }
