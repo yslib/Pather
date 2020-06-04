@@ -10,7 +10,6 @@ int main()
 	using namespace std;
 	using namespace vm;
 	string meshFile = R"(D:\scene_mesh.obj)";
-	string navMeshSavePath = R"(D:\test_nav_mesh_data.bin)";
 	ExternalSettings extSettings;
 
 	NavMeshDesc desc;
@@ -56,21 +55,21 @@ int main()
 
 	auto geom = shared_ptr<InputGeom>(new InputGeom());
 	geom->load(ctx.get(), meshFile);
-	auto pather = BuildPather(ctx, geom, extSettings, desc);
+	//auto pather = BuildPather(ctx, geom, extSettings, desc);
 
-	pather->SaveAs(navMeshSavePath);
+	//pather->SaveAs(navMeshSavePath);
 
 	
 
-	auto newNavMesh = LoadNavMesh(navMeshSavePath);
+	auto newNavMesh = LoadNavMesh("D:\\solo_navmesh.bin");
 
 	CrowdDesc cd;
 	cd.MaxAgentCount = 10;
 	cd.MaxAgentRadius = 1;
-	pather = CreatePather(newNavMesh, cd);
+	auto pather = CreatePather(newNavMesh, cd);
 
-	Point3f agentInitPos(12.800000190734864, 1, -22.012280);
-	Point3f agentTargetPos(13.626881, 1.400002, 5.984295);
+	Point3f agentInitPos(-9.1, 1.4, 2.3);
+	Point3f agentTargetPos(-27.126881, 1.4, 17.2);
 
 
 	const auto agID = pather->AddAgent(agentInitPos,ap);

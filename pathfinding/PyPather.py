@@ -6,11 +6,12 @@ import time
 
 reload(sys)
 sys.setdefaultencoding('gb2312')
-dll = ctypes.windll.LoadLibrary('lib/PathServer.dll')
+dll = ctypes.windll.LoadLibrary('D:/Mini/trunk/server/lib/PathServer.dll')
 pos_type = c_float * 3
 
 class NavMeshDesc(ctypes.Structure):
-    _fields_ = [("CellSize", c_float),
+    _fields_ = [
+        ("CellSize", c_float),
         ("CellHeight", c_float),
         ("AgentHeight", c_float),
         ("AgentRadius", c_float),
@@ -21,24 +22,14 @@ class NavMeshDesc(ctypes.Structure):
         ("EdgeMaxError", c_float),
         ("VertsPerPoly", c_float),
         ("DetailSampleDist", c_float),
-        ("DetailSampleMaxError", c_float)]
+        ("DetailSampleMaxError", c_float)
+        ]
 
 class CrowdDesc(ctypes.Structure):
-    _fields_ = [("MaxAgentCount", c_int),
-        ("MaxAgentRadius", c_float),]
-
-class AgentDesc(ctypes.Structure):
-    _fields_ = [("radius",c_float),
-        ("height",c_float),
-        ("maxAcceleration",c_float),
-        ("maxSpeed",c_float),
-        ("collisionQueryRange",c_float),
-        ("pathOptimizationRange",c_float),
-        ("separationWeight",c_float),
-        ("updateFlags",c_ubyte),
-        ("obstacleAvoidanceType",c_ubyte),
-        ("queryFilterType",c_ubyte),
-        ("userData",c_void_p)]
+    _fields_ = [
+        ("MaxAgentCount", c_int),
+        ("MaxAgentRadius", c_float)
+        ]
 
 
 class Pather(object):
@@ -78,17 +69,6 @@ class Pather(object):
         p[1] = pos[1]
         p[2] = pos[2]
         return func(c_int(self.handle),p)
-
-    def add_agent_desc(self,pos,desc):
-        func = dll.add_agent_desc
-        func.argtypes = [c_int, POINTER(c_float),POINTER(AgentDesc)]
-        func.restype = c_int
-        p = pos_type()
-        p[0] = pos[0]
-        p[1] = pos[1]
-        p[2] = pos[2]
-        return func(c_int(self.handle),p,byref(desc))
-
 
     def remove_agent(self,idx):
         func = dll.remove_agent
@@ -172,8 +152,8 @@ class Pather(object):
 
 if __name__ == "__main__":
 
-    mesh_obj_file = "game_data/scene_mesh.obj"
-    nav_mesh_file = "D:/solo_navmesh.bin"
+    mesh_obj_file = "D:\\scene_mesh.obj"
+    nav_mesh_file = "D:\\solo_navmesh.bin"
     # desc = NavMeshDesc()
     # desc.CellSize = 0.17
     # desc.CellHeight = 0.17
@@ -191,29 +171,13 @@ if __name__ == "__main__":
 
     pather = Pather()
     cd = CrowdDesc()
-
-    
-
     cd.MaxAgentCount = 10
     cd.MaxAgentRadius = 1
     pather.create_pather(nav_mesh_file, cd)
 
-
     startPos = [-22.209324, 1.400002,- 12.012280]
     endPos = [13.626881, 1.400002, 5.984295]
-
-    ap = AgentDesc()
-    ap.radius = 0.1
-    ap.height = 1
-    ap.maxAcceleration = 8.0
-    ap.maxSpeed = 3.5
-    ap.collisionQueryRange = ap.radius * 12.0
-    ap.pathOptimizationRange = ap.radius * 30.0
-    ap.updateFlags = 31
-    ap.obstacleAvoidanceType = 0
-    ap.separationWeight = 2.0
-
-    agid = pather.add_agent_desc(startPos,ap)
+    agid = pather.add_agent(startPos)
     print "agid",agid
     pather.move_agent_to(agid, endPos)
 

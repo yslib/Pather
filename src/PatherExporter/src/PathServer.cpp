@@ -221,6 +221,16 @@ int add_agent(pather_handle p, const float* pos)
 	return pather->AddAgent(po, ap);
 }
 
+
+int add_agent_desc(pather_handle p, const float* pos,const AgentDesc * desc)
+{
+	Debug("server:[{}][add_agent_desc]", p);
+	auto& pather = servers[p].pather;
+	assert(pather);
+	Point3f po(pos[0], pos[1], pos[2]);
+	return pather->AddAgent(po, *desc);
+}
+
 void simulate(pather_handle p, float dt)
 {
 	Debug("server:[{}][simulate]", p);

@@ -15,9 +15,7 @@ target_include_directories(Pather PUBLIC ${PathServer_INCLUDE_DIR})
 
 
 install(TARGETS PathServer
-        ARCHIVE DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
-        LIBRARY DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
-        RUNTIME DESTINATION "${PYTHON_PROJECT_PREFIX}/lib"
+        RUNTIME DESTINATION "${CMAKE_SOURCE_DIR}/../../lib"
         COMPONENT library
         )
 

@@ -48,6 +48,8 @@ C_FUNC_EXPORT void CALL_SPEC destroy_pather(pather_handle);
 
 C_FUNC_EXPORT int CALL_SPEC add_agent(pather_handle,const float* pos);
 
+C_FUNC_EXPORT int CALL_SPEC add_agent_desc(pather_handle p, const float* pos, const AgentDesc* desc);
+
 C_FUNC_EXPORT void CALL_SPEC simulate(pather_handle, float dt);
 
 C_FUNC_EXPORT void CALL_SPEC save(pather_handle,const char * fn);
